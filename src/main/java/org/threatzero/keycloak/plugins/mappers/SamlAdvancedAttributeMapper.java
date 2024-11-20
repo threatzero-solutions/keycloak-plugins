@@ -29,11 +29,11 @@ public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper 
   private static final Set<IdentityProviderSyncMode> IDENTITY_PROVIDER_SYNC_MODES =
       new HashSet<>(Arrays.asList(IdentityProviderSyncMode.values()));
 
-  private static final String CLAIM = "claim";
+  private static final String CLAIM_NAME = "attribute.name";
   private static final String MATCH_PATTERNS = "patterns";
-  private static final String DEFAULT_VALUE = "defaultValue";
-  private static final String PATTERN_TYPE = "patternType";
-  private static final String ATTRIBUTE_NAME = "attributeName";
+  private static final String DEFAULT_VALUE = "default.value";
+  private static final String PATTERN_TYPE = "pattern.type";
+  private static final String ATTRIBUTE_NAME = "user.attribute";
 
   @Override
   public void close() {}
@@ -63,7 +63,7 @@ public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper 
   public List<ProviderConfigProperty> getConfigProperties() {
     return List.of(
         new ProviderConfigProperty(
-            CLAIM,
+            CLAIM_NAME,
             "Attribute",
             "The name of the attribute to match against. This can either be the name or the"
                 + " friendly name.",
@@ -159,7 +159,7 @@ public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper 
 
   protected List<Object> getClaimValue(
       IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
-    String attributeKey = mapperModel.getConfig().get(CLAIM);
+    String attributeKey = mapperModel.getConfig().get(CLAIM_NAME);
 
     AssertionType assertion =
         (AssertionType) context.getContextData().get(SAMLEndpoint.SAML_ASSERTION);

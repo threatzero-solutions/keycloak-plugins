@@ -28,10 +28,11 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
   private static final Set<IdentityProviderSyncMode> IDENTITY_PROVIDER_SYNC_MODES =
       new HashSet<>(Arrays.asList(IdentityProviderSyncMode.values()));
 
+  private static final String CLAIM_NAME = "attribute.name";
   private static final String MATCH_PATTERNS = "patterns";
-  private static final String DEFAULT_VALUE = "defaultValue";
-  private static final String PATTERN_TYPE = "patternType";
-  private static final String ATTRIBUTE_NAME = "attributeName";
+  private static final String DEFAULT_VALUE = "default.value";
+  private static final String PATTERN_TYPE = "pattern.type";
+  private static final String ATTRIBUTE_NAME = "user.attribute";
 
   @Override
   public void close() {}
@@ -164,7 +165,8 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
       BrokeredIdentityContext context) {
     Map<String, List<String>> matchPatterns = mapperModel.getConfigMap(MATCH_PATTERNS);
     String patternType = mapperModel.getConfig().get(PATTERN_TYPE);
-    String claimValue = String.valueOf(getClaimValue(mapperModel, context));
+    String claimName = mapperModel.getConfig().get(CLAIM_NAME);
+    String claimValue = String.valueOf(getClaimValue(context, claimName));
 
     String attributeValue = mapperModel.getConfig().get(DEFAULT_VALUE);
 

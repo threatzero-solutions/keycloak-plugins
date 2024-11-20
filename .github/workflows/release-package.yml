@@ -64,21 +64,11 @@ jobs:
 
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: ncipollo/release-action@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ steps.extract_version.outputs.version }}
-        release_name: Release ${{ steps.extract_version.outputs.version }}
-        draft: false
-        prerelease: false
-
-    - name: Upload JAR to Release
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: target/keycloak-plugins-${{ steps.extract_version.outputs.version }}.jar
-        asset_name: keycloak-plugins.jar
-        asset_content_type: application/java-archive
+        tag: ${{ steps.extract_version.outputs.version }}
+        name: Release ${{ steps.extract_version.outputs.version }}
+        artifacts: target/**/*.jar
+        

@@ -38,7 +38,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: keycloak-plugins
-        path: target/*.jar
+        path: target/**/*.jar
 
   release:
     needs: build
@@ -79,6 +79,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: target/*.jar
+        asset_path: target/**/*.jar
         asset_name: keycloak-plugins.jar
         asset_content_type: application/java-archive

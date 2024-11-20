@@ -23,7 +23,7 @@ import org.keycloak.models.UserModel;
 import org.keycloak.provider.ProviderConfigProperty;
 
 public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper {
-  private static final String ID = "saml-organization-unit-mapper";
+  private static final String ID = "saml-advanced-attribute-mapper";
 
   private static final String[] COMPATIBLE_PROVIDERS = {SAMLIdentityProviderFactory.PROVIDER_ID};
   private static final Set<IdentityProviderSyncMode> IDENTITY_PROVIDER_SYNC_MODES =
@@ -56,7 +56,7 @@ public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper 
 
   @Override
   public String getHelpText() {
-    return "Dynamically match a claim using patterns to various attribute values.";
+    return "Dynamically match a SAML attribute using patterns to various attribute values.";
   }
 
   @Override

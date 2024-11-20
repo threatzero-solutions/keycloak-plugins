@@ -1,7 +1,10 @@
 package org.threatzero.keycloak.plugins.mappers;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.keycloak.Config.Scope;
 import org.keycloak.broker.oidc.KeycloakOIDCIdentityProviderFactory;
@@ -18,9 +21,12 @@ import org.keycloak.provider.ProviderConfigProperty;
 
 public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
   private static final String ID = "oidc-advanced-attribute-mapper";
+
   private static final String[] COMPATIBLE_PROVIDERS = {
     KeycloakOIDCIdentityProviderFactory.PROVIDER_ID, OIDCIdentityProviderFactory.PROVIDER_ID
   };
+  private static final Set<IdentityProviderSyncMode> IDENTITY_PROVIDER_SYNC_MODES =
+      new HashSet<>(Arrays.asList(IdentityProviderSyncMode.values()));
 
   private static final String MATCH_PATTERNS = "patterns";
   private static final String DEFAULT_VALUE = "defaultValue";
@@ -65,7 +71,9 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
         new ProviderConfigProperty(
             MATCH_PATTERNS,
             "Match Patterns",
-            "The patterns and the corresponding values to assign to the attribute upon match.",
+            "The patterns and the corresponding values to assign to the attribute upon match. The"
+                + " key should be a pattern of one of the types below and the value should be the"
+                + " value that is assigned to the user attribute if the pattern matches.",
             ProviderConfigProperty.MAP_TYPE,
             Map.of()),
         new ProviderConfigProperty(
@@ -93,7 +101,7 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
 
   @Override
   public boolean supportsSyncMode(IdentityProviderSyncMode syncMode) {
-    return true;
+    return IDENTITY_PROVIDER_SYNC_MODES.contains(syncMode);
   }
 
   @Override

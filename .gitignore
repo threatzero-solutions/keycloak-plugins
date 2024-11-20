@@ -1,0 +1,10 @@
+*
+!*/
+
+!/.gitignore
+!/pom.xml
+!/README.md
+!/LICENSE.md
+!/src/**
+
+.env

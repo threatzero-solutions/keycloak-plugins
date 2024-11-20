@@ -5,6 +5,7 @@
 !/pom.xml
 !/README.md
 !/LICENSE.md
+!/.github/workflows/*
 !/src/**
 
 .env

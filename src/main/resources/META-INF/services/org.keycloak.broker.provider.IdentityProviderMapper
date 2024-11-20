@@ -1,1 +1,2 @@
-org.threatzero.keycloak.plugins.mappers.OidcOrganizationUnitMapper
+org.threatzero.keycloak.plugins.mappers.OidcAdvancedAttributeMapper
+org.threatzero.keycloak.plugins.mappers.SamlAdvancedAttributeMapper

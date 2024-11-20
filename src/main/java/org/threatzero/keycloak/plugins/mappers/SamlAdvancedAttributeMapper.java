@@ -24,7 +24,7 @@ import org.keycloak.models.UserModel;
 import org.keycloak.provider.ProviderConfigProperty;
 
 public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper {
-  private static final String ID = "saml-advanced-attribute-mapper";
+  private static final String ID = "saml-advanced-attribute-idp-mapper";
 
   private static final String[] COMPATIBLE_PROVIDERS = {SAMLIdentityProviderFactory.PROVIDER_ID};
   private static final Set<IdentityProviderSyncMode> IDENTITY_PROVIDER_SYNC_MODES =
@@ -37,6 +37,7 @@ public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper 
   private static final String DEFAULT_VALUE = "default.value";
   private static final String PATTERN_TYPE = "pattern.type";
   private static final String ATTRIBUTE_NAME = "user.attribute";
+  private static final String IS_MULTIVALUE = "is.multivalue";
 
   static {
     // CLAIM property
@@ -85,6 +86,13 @@ public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper 
     attributeNameProperty.setLabel("User Attribute Name");
     attributeNameProperty.setType(ProviderConfigProperty.USER_PROFILE_ATTRIBUTE_LIST_TYPE);
     attributeNameProperty.setHelpText("The name of the user attribute to assign the value to.");
+
+    // IS_MULTIVALUE property
+    ProviderConfigProperty isMultivalueProperty = new ProviderConfigProperty();
+    isMultivalueProperty.setName(IS_MULTIVALUE);
+    isMultivalueProperty.setLabel("Multiple Values");
+    isMultivalueProperty.setType(ProviderConfigProperty.BOOLEAN_TYPE);
+    isMultivalueProperty.setHelpText("Does the user attribute support multiple values?");
   }
 
   @Override
@@ -203,23 +211,34 @@ public class SamlAdvancedAttributeMapper extends AbstractIdentityProviderMapper 
       BrokeredIdentityContext context) {
     Map<String, List<String>> matchPatterns = mapperModel.getConfigMap(MATCH_PATTERNS);
     String patternType = mapperModel.getConfig().get(PATTERN_TYPE);
+    Boolean isMultiValue = Boolean.parseBoolean(mapperModel.getConfig().get(IS_MULTIVALUE));
+    String attributeName = mapperModel.getConfig().get(ATTRIBUTE_NAME);
 
     List<Object> claimValues = getClaimValue(mapperModel, context);
 
-    String attributeValue = mapperModel.getConfig().get(DEFAULT_VALUE);
+    List<String> attributeValues = new ArrayList<String>();
 
     for (Map.Entry<String, List<String>> matchPattern : matchPatterns.entrySet()) {
       for (Object claimValue : claimValues) {
         if (valueMatches(matchPattern.getKey(), String.valueOf(claimValue), patternType)) {
-          attributeValue = matchPattern.getValue().get(0);
-          break;
+          attributeValues.add(matchPattern.getValue().get(0));
         }
       }
     }
 
-    String attributeName = mapperModel.getConfig().get(ATTRIBUTE_NAME);
-    if (attributeName != null && attributeValue != null && !attributeValue.isBlank()) {
-      user.setSingleAttribute(attributeName, attributeValue);
+    if (attributeValues.isEmpty()) {
+      attributeValues.add(mapperModel.getConfig().get(DEFAULT_VALUE));
+    }
+
+    List<String> cleanedAttributeValues =
+        attributeValues.stream().filter(v -> v != null && !v.isBlank()).toList();
+
+    if (attributeName != null) {
+      if (isMultiValue) {
+        user.setAttribute(attributeName, cleanedAttributeValues);
+      } else if (!cleanedAttributeValues.isEmpty()) {
+        user.setSingleAttribute(attributeName, cleanedAttributeValues.get(0));
+      }
     }
   }
 }

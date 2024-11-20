@@ -48,6 +48,7 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
         "The name of the claim to match against. You can reference nested claims using a '.',"
             + " i.e. 'address.locality'. To use dot (.) literally, escape it with backslash."
             + " (\\.)");
+    claimProperty.setRequired(true);
     configProperties.add(claimProperty);
 
     // MATCH_PATTERNS property
@@ -67,6 +68,7 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
     defaultValueProperty.setLabel("Default Value");
     defaultValueProperty.setType(ProviderConfigProperty.STRING_TYPE);
     defaultValueProperty.setHelpText("The value to use if no claims match.");
+    defaultValueProperty.setRequired(false);
     configProperties.add(defaultValueProperty);
 
     // PATTERN_TYPE property
@@ -78,6 +80,7 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
         "Algorithm used to match claims. Supported types: exact, regex, glob.");
     patternTypeProperty.setOptions(List.of("exact", "regex", "glob"));
     patternTypeProperty.setDefaultValue("exact");
+    patternTypeProperty.setRequired(false);
     configProperties.add(patternTypeProperty);
 
     // ATTRIBUTE_NAME property
@@ -86,6 +89,8 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
     attributeNameProperty.setLabel("User Attribute Name");
     attributeNameProperty.setType(ProviderConfigProperty.USER_PROFILE_ATTRIBUTE_LIST_TYPE);
     attributeNameProperty.setHelpText("The name of the user attribute to assign the value to.");
+    attributeNameProperty.setRequired(true);
+    configProperties.add(attributeNameProperty);
 
     // IS_MULTIVALUE property
     ProviderConfigProperty isMultivalueProperty = new ProviderConfigProperty();
@@ -93,6 +98,9 @@ public class OidcAdvancedAttributeMapper extends AbstractClaimMapper {
     isMultivalueProperty.setLabel("Multiple Values");
     isMultivalueProperty.setType(ProviderConfigProperty.BOOLEAN_TYPE);
     isMultivalueProperty.setHelpText("Does the user attribute support multiple values?");
+    isMultivalueProperty.setDefaultValue(false);
+    isMultivalueProperty.setRequired(false);
+    configProperties.add(isMultivalueProperty);
   }
 
   @Override

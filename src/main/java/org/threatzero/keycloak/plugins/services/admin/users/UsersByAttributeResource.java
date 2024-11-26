@@ -184,8 +184,8 @@ public class UsersByAttributeResource {
       Root<UserEntity> root,
       Join<UserEntity, UserAttributeEntity> attributesJoin,
       QueryFilter filter) {
-    if (filter.getCondition().isPresent()) {
-      QueryFilter.Condition condition = filter.getCondition().get();
+    if (filter.getQ().isPresent()) {
+      QueryFilter.Condition condition = filter.getQ().get();
       return getPredicate(cb, root, attributesJoin, condition);
     } else if (filter.getAnd().isPresent()) {
       return cb.and(
@@ -215,9 +215,9 @@ public class UsersByAttributeResource {
 
     String value = values.get(0);
     QueryFilter.Condition.Operator operator =
-        condition.getOperator().orElse(QueryFilter.Condition.Operator.EQUALS);
+        condition.getOp().orElse(QueryFilter.Condition.Operator.EQ);
 
-    String attributeName = condition.getAttribute();
+    String attributeName = condition.getKey();
     boolean isAttribute = false;
     Expression<String> alias;
     if (isAttributeName(attributeName)) {
@@ -240,31 +240,31 @@ public class UsersByAttributeResource {
       case CONTAINS:
         thePredicate = cb.like(alias, "%" + value + "%");
         break;
-      case STARTS_WITH:
+      case STARTS:
         thePredicate = cb.like(alias, value + "%");
         break;
-      case ENDS_WITH:
+      case ENDS:
         thePredicate = cb.like(alias, "%" + value);
         break;
-      case GREATER_THAN:
+      case GT:
         thePredicate = cb.greaterThan(alias, value);
         break;
-      case GREATER_THAN_OR_EQUAL:
+      case GTE:
         thePredicate = cb.greaterThanOrEqualTo(alias, value);
         break;
-      case LESS_THAN:
+      case LT:
         thePredicate = cb.lessThan(alias, value);
         break;
-      case LESS_THAN_OR_EQUAL:
+      case LTE:
         thePredicate = cb.lessThanOrEqualTo(alias, value);
         break;
-      case EQUALS:
+      case EQ:
       default:
         thePredicate = cb.equal(alias, value);
         break;
     }
 
-    if (condition.isNegate().orElse(false)) {
+    if (condition.isNot().orElse(false)) {
       thePredicate = cb.not(thePredicate);
     }
 

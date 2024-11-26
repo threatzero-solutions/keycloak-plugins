@@ -16,7 +16,7 @@ public class QueryFilter {
   @JsonProperty("OR")
   private List<QueryFilter> or;
 
-  private Condition condition;
+  private Condition q;
 
   public Optional<List<QueryFilter>> getAnd() {
     return Optional.ofNullable(and);
@@ -26,21 +26,21 @@ public class QueryFilter {
     return Optional.ofNullable(or);
   }
 
-  public Optional<Condition> getCondition() {
-    return Optional.ofNullable(condition);
+  public Optional<Condition> getQ() {
+    return Optional.ofNullable(q);
   }
 
   @Data
   public static class Condition {
     @JsonProperty(required = true)
-    private String attribute;
+    private String key;
 
-    private Operator operator;
+    private Operator op;
 
     @JsonProperty(value = "value", required = true)
     private List<String> values;
 
-    private Boolean negate;
+    private Boolean not;
     private Boolean ignoreCase;
 
     public void setValues(List<String> values) {
@@ -71,12 +71,12 @@ public class QueryFilter {
       }
     }
 
-    public Optional<Operator> getOperator() {
-      return Optional.ofNullable(operator);
+    public Optional<Operator> getOp() {
+      return Optional.ofNullable(op);
     }
 
-    public Optional<Boolean> isNegate() {
-      return Optional.ofNullable(negate);
+    public Optional<Boolean> isNot() {
+      return Optional.ofNullable(not);
     }
 
     public Optional<Boolean> isIgnoreCase() {
@@ -84,15 +84,15 @@ public class QueryFilter {
     }
 
     public static enum Operator {
-      EQUALS,
+      EQ,
       IN,
-      STARTS_WITH,
-      ENDS_WITH,
+      STARTS,
+      ENDS,
       CONTAINS,
-      GREATER_THAN,
-      GREATER_THAN_OR_EQUAL,
-      LESS_THAN,
-      LESS_THAN_OR_EQUAL;
+      GT,
+      GTE,
+      LT,
+      LTE;
 
       @JsonCreator
       public static Operator fromString(String operator) {

@@ -1,6 +1,7 @@
 package org.threatzero.keycloak.plugins.services.admin.users;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import jakarta.persistence.EntityManager;
@@ -18,7 +19,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Optional;
-
 import org.jboss.logging.Logger;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.KeycloakSession;
@@ -49,6 +49,15 @@ public class UsersByAttributeResource {
   private final JsonMapper mapper =
       JsonMapper.builder()
           .findAndAddModules()
+          // BEGIN Enable features for compatibility with JSON5.
+          .enable(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES)
+          .enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
+          .enable(JsonReadFeature.ALLOW_SINGLE_QUOTES)
+          .enable(JsonReadFeature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER)
+          .enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
+          .enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
+          .enable(JsonReadFeature.ALLOW_LEADING_DECIMAL_POINT_FOR_NUMBERS)
+          // END JSON5 features.
           .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
           .serializationInclusion(Include.NON_ABSENT)
           .build();
@@ -67,7 +76,9 @@ public class UsersByAttributeResource {
   @Path("/")
   @Produces(MediaType.APPLICATION_JSON)
   public Response getUsersByAttribute(
-      @QueryParam("filter") String filter, @QueryParam("order") QueryOrder order, @QueryParam("limit") Integer limit, 
+      @QueryParam("filter") String filter,
+      @QueryParam("order") QueryOrder order,
+      @QueryParam("limit") Integer limit,
       @QueryParam("offset") Integer offset) {
     // IMPORTANT: Check for permissions before executing query.
     auth.users().requireQuery();

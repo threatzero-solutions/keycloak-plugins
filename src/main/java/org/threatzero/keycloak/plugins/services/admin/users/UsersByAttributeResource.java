@@ -14,19 +14,28 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Selection;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
+import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.jpa.GroupAdapter;
 import org.keycloak.models.jpa.UserAdapter;
+import org.keycloak.models.jpa.entities.GroupEntity;
 import org.keycloak.models.jpa.entities.UserAttributeEntity;
 import org.keycloak.models.jpa.entities.UserEntity;
+import org.keycloak.models.jpa.entities.UserGroupMembershipEntity;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.services.resources.admin.AdminEventBuilder;
@@ -86,9 +95,8 @@ public class UsersByAttributeResource {
     EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
     CriteriaBuilder cb = em.getCriteriaBuilder();
 
-    CriteriaQuery<UserEntity> qb = cb.createQuery(UserEntity.class);
+    CriteriaQuery<Tuple> qb = cb.createTupleQuery();
     Root<UserEntity> root = qb.from(UserEntity.class);
-    Join<UserEntity, UserAttributeEntity> attributesJoin = root.join("attributes", JoinType.LEFT);
 
     QueryFilter queryFilter = null;
     if (filter != null) {
@@ -101,30 +109,39 @@ public class UsersByAttributeResource {
     }
 
     // Apply query filter to where clause.
-    qb.where(buildPredicate(cb, root, attributesJoin, queryFilter));
+    qb.select(cb.tuple(root)).where(buildPredicate(cb, root, queryFilter));
 
     // Set order by.
     if (order != null && !order.getValues().isEmpty()) {
+      AtomicInteger idx = new AtomicInteger(0);
       qb.orderBy(
           order.getValues().stream()
               .map(
                   o -> {
+                    String aliasName = "attribute_order_" + idx.getAndIncrement();
                     // If the sortable key comes from the user attributes table, we need to select
                     // the value for the given key to sort by it. Otherwise, we can simply use the
                     // key.
-                    Expression<Object> alias;
                     if (isAttributeName(o.getKey())) {
-                      Expression<Object> selectExpression =
-                          cb.selectCase()
-                              .when(
-                                  cb.equal(attributesJoin.get("name"), o.getKey()),
-                                  attributesJoin.get("value"))
-                              .otherwise(cb.nullLiteral(String.class));
-                      alias = selectExpression;
+                      Join<UserEntity, UserAttributeEntity> attributesJoin =
+                          root.join("attributes", JoinType.LEFT);
+                      attributesJoin.on(
+                          cb.and(
+                              cb.equal(root.get("id"), attributesJoin.get("user").get("id")),
+                              cb.equal(attributesJoin.get("name"), o.getKey())));
+                      Expression<Number> valueExpr = attributesJoin.get("value");
+                      Expression<Number> alias = o.isAsc() ? cb.min(valueExpr) : cb.max(valueExpr);
+                      List<Selection<?>> existingSelections =
+                          new ArrayList<>(qb.getSelection().getCompoundSelectionItems());
+                      existingSelections.add(alias.alias(aliasName));
+                      qb.distinct(true)
+                          .select(cb.tuple(existingSelections.toArray(Selection[]::new)))
+                          .groupBy(root);
+                      return o.isAsc() ? cb.asc(alias) : cb.desc(alias);
                     } else {
-                      alias = root.get(o.getKey());
+                      Expression<String> alias = root.get(o.getKey());
+                      return o.isAsc() ? cb.asc(alias) : cb.desc(alias);
                     }
-                    return o.isAsc() ? cb.asc(alias) : cb.desc(alias);
                   })
               .toList());
     } else {
@@ -132,7 +149,7 @@ public class UsersByAttributeResource {
     }
 
     // Limit and offset.
-    TypedQuery<UserEntity> query = em.createQuery(qb);
+    TypedQuery<Tuple> query = em.createQuery(qb);
     int cleanedLimit = Math.min(Optional.ofNullable(limit).orElse(DEFAULT_LIMIT), MAX_LIMIT);
     query = query.setMaxResults(cleanedLimit);
     query = query.setFirstResult(Optional.ofNullable(offset).orElse(0));
@@ -141,21 +158,22 @@ public class UsersByAttributeResource {
     List<UserRepresentation> results =
         query
             .getResultStream()
+            .map(t -> t.get(0, UserEntity.class))
             .map(
                 u ->
                     ModelToRepresentation.toRepresentation(
                         session, realm, new UserAdapter(session, realm, em, u)))
             .toList();
+    results = populateGroups(em, cb, results);
 
     // Get total count.
     CriteriaQuery<Tuple> countQb = cb.createTupleQuery();
     Root<UserEntity> countRoot = countQb.from(UserEntity.class);
-    Join<UserEntity, UserAttributeEntity> countAttributesJoin =
-        countRoot.join("attributes", JoinType.LEFT);
 
     countQb
+        .distinct(true)
         .select(cb.tuple(cb.count(countRoot.get("id"))))
-        .where(buildPredicate(cb, countRoot, countAttributesJoin, queryFilter))
+        .where(buildPredicate(cb, countRoot, queryFilter))
         .groupBy(countRoot.get("realmId"));
 
     Long total =
@@ -175,11 +193,7 @@ public class UsersByAttributeResource {
     return Response.ok(page).build();
   }
 
-  private Predicate buildPredicate(
-      CriteriaBuilder cb,
-      Root<UserEntity> root,
-      Join<UserEntity, UserAttributeEntity> attributesJoin,
-      QueryFilter filter) {
+  private Predicate buildPredicate(CriteriaBuilder cb, Root<UserEntity> root, QueryFilter filter) {
     // IMPORTANT: Base query should only include users from specified realm AND exclude all service
     // accounts.
     Predicate thePredicate =
@@ -188,39 +202,32 @@ public class UsersByAttributeResource {
             root.get("serviceAccountClientLink").isNull());
 
     if (filter != null) {
-      thePredicate = cb.and(thePredicate, getPredicate(cb, root, attributesJoin, filter));
+      thePredicate = cb.and(thePredicate, getPredicate(cb, root, filter));
     }
 
     return thePredicate;
   }
 
-  private Predicate getPredicate(
-      CriteriaBuilder cb,
-      Root<UserEntity> root,
-      Join<UserEntity, UserAttributeEntity> attributesJoin,
-      QueryFilter filter) {
+  private Predicate getPredicate(CriteriaBuilder cb, Root<UserEntity> root, QueryFilter filter) {
     if (filter.getQ().isPresent()) {
       QueryFilter.Condition condition = filter.getQ().get();
-      return getPredicate(cb, root, attributesJoin, condition);
+      return getPredicate(cb, root, condition);
     } else if (filter.getAnd().isPresent()) {
       return cb.and(
           filter.getAnd().get().stream()
-              .map(f -> getPredicate(cb, root, attributesJoin, f))
+              .map(f -> getPredicate(cb, root, f))
               .toArray(Predicate[]::new));
     } else if (filter.getOr().isPresent()) {
       return cb.or(
           filter.getOr().get().stream()
-              .map(f -> getPredicate(cb, root, attributesJoin, f))
+              .map(f -> getPredicate(cb, root, f))
               .toArray(Predicate[]::new));
     }
-    return null;
+    return cb.conjunction();
   }
 
   private Predicate getPredicate(
-      CriteriaBuilder cb,
-      Root<UserEntity> root,
-      Join<UserEntity, UserAttributeEntity> attributesJoin,
-      QueryFilter.Condition condition) {
+      CriteriaBuilder cb, Root<UserEntity> root, QueryFilter.Condition condition) {
     Boolean ignoreCase = condition.isIgnoreCase().orElse(true);
 
     List<String> values = condition.getValues();
@@ -236,7 +243,7 @@ public class UsersByAttributeResource {
     boolean isAttribute = false;
     Expression<String> alias;
     if (isAttributeName(attributeName)) {
-      alias = attributesJoin.get("value");
+      alias = root.get("attributes").get("value");
       isAttribute = true;
     } else {
       alias = root.get(attributeName);
@@ -250,7 +257,7 @@ public class UsersByAttributeResource {
 
     switch (operator) {
       case IN:
-        thePredicate = cb.in(alias).in(values);
+        thePredicate = alias.in(values);
         break;
       case CONTAINS:
         thePredicate = cb.like(alias, "%" + value + "%");
@@ -284,7 +291,8 @@ public class UsersByAttributeResource {
     }
 
     if (isAttribute) {
-      thePredicate = cb.and(cb.equal(attributesJoin.get("name"), attributeName), thePredicate);
+      thePredicate =
+          cb.and(cb.equal(root.get("attributes").get("name"), attributeName), thePredicate);
     }
 
     return thePredicate;
@@ -303,5 +311,45 @@ public class UsersByAttributeResource {
       default:
         return true;
     }
+  }
+
+  private List<UserRepresentation> populateGroups(
+      EntityManager em, CriteriaBuilder cb, List<UserRepresentation> users) {
+
+    CriteriaQuery<Tuple> qb = cb.createTupleQuery();
+    Root<UserGroupMembershipEntity> membershipRoot = qb.from(UserGroupMembershipEntity.class);
+    Root<GroupEntity> groupRoot = qb.from(GroupEntity.class);
+
+    Predicate thisPredicate =
+        cb.and(
+            membershipRoot.get("user").get("id").in(users.stream().map(u -> u.getId()).toList()),
+            cb.equal(groupRoot.get("id"), membershipRoot.get("groupId")),
+            cb.equal(groupRoot.get("type"), GroupModel.Type.REALM.intValue()));
+
+    qb.select(cb.tuple(membershipRoot.get("user").get("id"), groupRoot)).where(thisPredicate);
+
+    TypedQuery<Tuple> query = em.createQuery(qb);
+    Map<String, List<GroupEntity>> userGroupMap =
+        query
+            .getResultStream()
+            .collect(
+                Collectors.groupingBy(
+                    t -> t.get(0, String.class),
+                    Collectors.mapping(t -> t.get(1, GroupEntity.class), Collectors.toList())));
+
+    return users.stream()
+        .map(
+            u -> {
+              u.setGroups(
+                  userGroupMap.getOrDefault(u.getId(), List.of()).stream()
+                      .map(
+                          g ->
+                              ModelToRepresentation.toRepresentation(
+                                      new GroupAdapter(session, realm, em, g), false)
+                                  .getPath())
+                      .toList());
+              return u;
+            })
+        .toList();
   }
 }

@@ -158,8 +158,12 @@ public class UsersByAttributeResource {
         .where(buildPredicate(cb, countRoot, countAttributesJoin, queryFilter))
         .groupBy(countRoot.get("realmId"));
 
-    Tuple countResults = em.createQuery(countQb).getSingleResult();
-    Long total = countResults.get(0, Long.class);
+    Long total =
+        em.createQuery(countQb)
+            .getResultStream()
+            .findFirst()
+            .map(t -> t.get(0, Long.class))
+            .orElse(0L);
 
     // Build response.
     Paginated<UserRepresentation> page = new Paginated<>();

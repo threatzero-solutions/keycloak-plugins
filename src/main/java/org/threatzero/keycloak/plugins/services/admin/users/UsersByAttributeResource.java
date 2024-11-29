@@ -52,6 +52,8 @@ public class UsersByAttributeResource {
   private static final int DEFAULT_LIMIT = 10;
   private static final int MAX_LIMIT = 1000;
 
+  private final AtomicInteger attributeCount = new AtomicInteger(0);
+
   private final KeycloakSession session;
   private final RealmModel realm;
   private final AdminPermissionEvaluator auth;
@@ -109,7 +111,7 @@ public class UsersByAttributeResource {
     }
 
     // Apply query filter to where clause.
-    qb.select(cb.tuple(root)).where(buildPredicate(cb, root, queryFilter));
+    qb.distinct(true).select(cb.tuple(root)).where(buildPredicate(cb, root, queryFilter));
 
     // Set order by.
     if (order != null && !order.getValues().isEmpty()) {
@@ -171,10 +173,8 @@ public class UsersByAttributeResource {
     Root<UserEntity> countRoot = countQb.from(UserEntity.class);
 
     countQb
-        .distinct(true)
-        .select(cb.tuple(cb.count(countRoot.get("id"))))
-        .where(buildPredicate(cb, countRoot, queryFilter))
-        .groupBy(countRoot.get("realmId"));
+        .select(cb.tuple(cb.countDistinct(countRoot.get("id"))))
+        .where(buildPredicate(cb, countRoot, queryFilter));
 
     Long total =
         em.createQuery(countQb)
@@ -240,11 +240,12 @@ public class UsersByAttributeResource {
         condition.getOp().orElse(QueryFilter.Condition.Operator.EQ);
 
     String attributeName = condition.getKey();
-    boolean isAttribute = false;
+    Join<UserEntity, UserAttributeEntity> attributesJoin = null;
     Expression<String> alias;
     if (isAttributeName(attributeName)) {
-      alias = root.get("attributes").get("value");
-      isAttribute = true;
+      attributesJoin = root.join("attributes");
+      attributesJoin.alias("ua" + attributeCount.incrementAndGet());
+      alias = attributesJoin.get("value");
     } else {
       alias = root.get(attributeName);
     }
@@ -290,9 +291,8 @@ public class UsersByAttributeResource {
       thePredicate = cb.not(thePredicate);
     }
 
-    if (isAttribute) {
-      thePredicate =
-          cb.and(cb.equal(root.get("attributes").get("name"), attributeName), thePredicate);
+    if (attributesJoin != null) {
+      thePredicate = cb.and(cb.equal(attributesJoin.get("name"), attributeName), thePredicate);
     }
 
     return thePredicate;

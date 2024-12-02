@@ -18,6 +18,8 @@ public class QueryFilter {
 
   private Condition q;
 
+  private GroupCondition groupQ;
+
   public Optional<List<QueryFilter>> getAnd() {
     return Optional.ofNullable(and);
   }
@@ -28,6 +30,10 @@ public class QueryFilter {
 
   public Optional<Condition> getQ() {
     return Optional.ofNullable(q);
+  }
+
+  public Optional<GroupCondition> getGroupQ() {
+    return Optional.ofNullable(groupQ);
   }
 
   @Data
@@ -93,6 +99,46 @@ public class QueryFilter {
       GTE,
       LT,
       LTE;
+
+      @JsonCreator
+      public static Operator fromString(String operator) {
+        if (operator == null) {
+          return null;
+        }
+        try {
+          return Operator.valueOf(operator.toUpperCase());
+        } catch (IllegalArgumentException e) {
+          return null;
+        }
+      }
+
+      @JsonValue
+      public String toString() {
+        return name().toLowerCase();
+      }
+    }
+  }
+
+  @Data
+  public static class GroupCondition {
+    private String key;
+
+    @JsonProperty(required = true)
+    private List<String> groups;
+
+    private Operator op;
+
+    public Optional<String> getKey() {
+      return Optional.ofNullable(key);
+    }
+
+    public Optional<Operator> getOp() {
+      return Optional.ofNullable(op);
+    }
+
+    public static enum Operator {
+      ANY,
+      ALL;
 
       @JsonCreator
       public static Operator fromString(String operator) {

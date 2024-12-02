@@ -15,6 +15,7 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Selection;
+import jakarta.persistence.criteria.Subquery;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -111,7 +112,7 @@ public class UsersByAttributeResource {
     }
 
     // Apply query filter to where clause.
-    qb.distinct(true).select(cb.tuple(root)).where(buildPredicate(cb, root, queryFilter));
+    qb.distinct(true).select(cb.tuple(root)).where(buildPredicate(qb, cb, root, queryFilter));
 
     // Set order by.
     if (order != null && !order.getValues().isEmpty()) {
@@ -174,7 +175,7 @@ public class UsersByAttributeResource {
 
     countQb
         .select(cb.tuple(cb.countDistinct(countRoot.get("id"))))
-        .where(buildPredicate(cb, countRoot, queryFilter));
+        .where(buildPredicate(qb, cb, countRoot, queryFilter));
 
     Long total =
         em.createQuery(countQb)
@@ -193,7 +194,8 @@ public class UsersByAttributeResource {
     return Response.ok(page).build();
   }
 
-  private Predicate buildPredicate(CriteriaBuilder cb, Root<UserEntity> root, QueryFilter filter) {
+  private Predicate buildPredicate(
+      CriteriaQuery<?> qb, CriteriaBuilder cb, Root<UserEntity> root, QueryFilter filter) {
     // IMPORTANT: Base query should only include users from specified realm AND exclude all service
     // accounts.
     Predicate thePredicate =
@@ -202,25 +204,29 @@ public class UsersByAttributeResource {
             root.get("serviceAccountClientLink").isNull());
 
     if (filter != null) {
-      thePredicate = cb.and(thePredicate, getPredicate(cb, root, filter));
+      thePredicate = cb.and(thePredicate, getPredicate(qb, cb, root, filter));
     }
 
     return thePredicate;
   }
 
-  private Predicate getPredicate(CriteriaBuilder cb, Root<UserEntity> root, QueryFilter filter) {
+  private Predicate getPredicate(
+      CriteriaQuery<?> qb, CriteriaBuilder cb, Root<UserEntity> root, QueryFilter filter) {
     if (filter.getQ().isPresent()) {
       QueryFilter.Condition condition = filter.getQ().get();
       return getPredicate(cb, root, condition);
+    } else if (filter.getGroupQ().isPresent()) {
+      QueryFilter.GroupCondition groupCondition = filter.getGroupQ().get();
+      return getPredicate(qb, cb, root, groupCondition);
     } else if (filter.getAnd().isPresent()) {
       return cb.and(
           filter.getAnd().get().stream()
-              .map(f -> getPredicate(cb, root, f))
+              .map(f -> getPredicate(qb, cb, root, f))
               .toArray(Predicate[]::new));
     } else if (filter.getOr().isPresent()) {
       return cb.or(
           filter.getOr().get().stream()
-              .map(f -> getPredicate(cb, root, f))
+              .map(f -> getPredicate(qb, cb, root, f))
               .toArray(Predicate[]::new));
     }
     return cb.conjunction();
@@ -293,6 +299,49 @@ public class UsersByAttributeResource {
 
     if (attributesJoin != null) {
       thePredicate = cb.and(cb.equal(attributesJoin.get("name"), attributeName), thePredicate);
+    }
+
+    return thePredicate;
+  }
+
+  private Predicate getPredicate(
+      CriteriaQuery<?> qb,
+      CriteriaBuilder cb,
+      Root<UserEntity> root,
+      QueryFilter.GroupCondition groupCondition) {
+    QueryFilter.GroupCondition.Operator operator =
+        groupCondition.getOp().orElse(QueryFilter.GroupCondition.Operator.ALL);
+    List<String> values = groupCondition.getGroups();
+    String attributeName = groupCondition.getKey().orElse("name");
+
+    List<String> allowedGroupColumns = List.of("id", "name", "parentId");
+    if (!allowedGroupColumns.contains(attributeName)) {
+      return cb.disjunction();
+    }
+
+    Subquery<Long> sub = qb.subquery(Long.class);
+    Root<UserGroupMembershipEntity> membershipRoot = sub.from(UserGroupMembershipEntity.class);
+    Root<GroupEntity> groupRoot = sub.from(GroupEntity.class);
+
+    Predicate subPredicate =
+        cb.and(
+            cb.equal(root.get("id"), membershipRoot.get("user").get("id")),
+            cb.equal(groupRoot.get("id"), membershipRoot.get("groupId")),
+            groupRoot.get(attributeName).in(values),
+            cb.equal(groupRoot.get("type"), GroupModel.Type.REALM.intValue()));
+
+    sub.select(cb.count(groupRoot)).where(subPredicate);
+
+    Predicate thePredicate;
+
+    switch (operator) {
+      case ANY:
+        thePredicate = cb.greaterThanOrEqualTo(sub, 1L);
+        break;
+      case ALL:
+      default:
+        thePredicate = cb.equal(sub, (long) values.size());
+        break;
     }
 
     return thePredicate;

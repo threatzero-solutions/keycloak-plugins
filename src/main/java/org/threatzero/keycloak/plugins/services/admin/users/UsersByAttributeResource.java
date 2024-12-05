@@ -349,6 +349,7 @@ public class UsersByAttributeResource {
 
   private boolean isAttributeName(String name) {
     switch (name) {
+      case "id":
       case UserModel.USERNAME:
       case UserModel.EMAIL:
       case UserModel.FIRST_NAME:

@@ -138,7 +138,8 @@ public class QueryFilter {
 
     public static enum Operator {
       ANY,
-      ALL;
+      ALL,
+      NONE;
 
       @JsonCreator
       public static Operator fromString(String operator) {

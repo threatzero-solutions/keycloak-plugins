@@ -6,7 +6,7 @@
 
   <groupId>org.threatzero</groupId>
   <artifactId>keycloak-plugins</artifactId>
-  <version>1.4.1</version>
+  <version>1.4.2</version>
 
   <name>keycloak-plugins</name>
   <description>Custom plugins for ThreatZero's Keycloak instances.</description>

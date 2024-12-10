@@ -16,7 +16,10 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Selection;
 import jakarta.persistence.criteria.Subquery;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.ArrayList;
@@ -337,6 +340,9 @@ public class UsersByAttributeResource {
     switch (operator) {
       case ANY:
         thePredicate = cb.greaterThanOrEqualTo(sub, 1L);
+        break;
+      case NONE:
+        thePredicate = cb.equal(sub, 0L);
         break;
       case ALL:
       default:

@@ -1,9 +1,37 @@
 package org.threatzero.keycloak.plugins.services.admin.users;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+import org.jboss.logging.Logger;
+import org.keycloak.connections.jpa.JpaConnectionProvider;
+import org.keycloak.models.GroupModel;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
+import org.keycloak.models.jpa.GroupAdapter;
+import org.keycloak.models.jpa.UserAdapter;
+import org.keycloak.models.jpa.entities.GroupEntity;
+import org.keycloak.models.jpa.entities.UserAttributeEntity;
+import org.keycloak.models.jpa.entities.UserEntity;
+import org.keycloak.models.jpa.entities.UserGroupMembershipEntity;
+import org.keycloak.models.utils.ModelToRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.services.resources.admin.AdminEventBuilder;
+import org.keycloak.services.resources.admin.fgap.AdminPermissionEvaluator;
+import org.threatzero.keycloak.plugins.services.models.Paginated;
+import org.threatzero.keycloak.plugins.services.models.QueryFilter;
+import org.threatzero.keycloak.plugins.services.models.QueryOrder;
+
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import jakarta.persistence.TypedQuery;
@@ -22,31 +50,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import org.jboss.logging.Logger;
-import org.keycloak.connections.jpa.JpaConnectionProvider;
-import org.keycloak.models.GroupModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.jpa.GroupAdapter;
-import org.keycloak.models.jpa.UserAdapter;
-import org.keycloak.models.jpa.entities.GroupEntity;
-import org.keycloak.models.jpa.entities.UserAttributeEntity;
-import org.keycloak.models.jpa.entities.UserEntity;
-import org.keycloak.models.jpa.entities.UserGroupMembershipEntity;
-import org.keycloak.models.utils.ModelToRepresentation;
-import org.keycloak.representations.idm.UserRepresentation;
-import org.keycloak.services.resources.admin.AdminEventBuilder;
-import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
-import org.threatzero.keycloak.plugins.services.models.Paginated;
-import org.threatzero.keycloak.plugins.services.models.QueryFilter;
-import org.threatzero.keycloak.plugins.services.models.QueryOrder;
 
 public class UsersByAttributeResource {
   private static final Logger logger = Logger.getLogger(UsersByAttributeResource.class);

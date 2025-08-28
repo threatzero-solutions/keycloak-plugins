@@ -1,11 +1,13 @@
 package org.threatzero.keycloak.plugins.services.models;
 
+import java.util.List;
+import java.util.Optional;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonValue;
-import java.util.List;
-import java.util.Optional;
+
 import lombok.Data;
 
 @Data
@@ -44,34 +46,29 @@ public class QueryFilter {
     private Operator op;
 
     @JsonProperty(value = "value", required = true)
-    private List<String> values;
+    private List<Object> values;
 
     private Boolean not;
     private Boolean ignoreCase;
 
-    public void setValues(List<String> values) {
+    public void setValues(List<Object> values) {
       if (values == null || values.isEmpty()) {
         throw new IllegalArgumentException("values cannot be null or empty");
       }
       this.values = values;
     }
 
-    public void setValues(String... values) {
+    public void setValues(Object... values) {
       this.values = List.of(values);
-    }
-
-    public void setValue(String value) {
-      this.values = List.of(value);
     }
 
     @JsonSetter("value")
     @SuppressWarnings("unchecked")
     public void setValue(Object value) {
-      if (value instanceof String) {
-        setValue((String) value);
-      } else if (value instanceof List
-          && ((List<?>) value).stream().allMatch(el -> el instanceof String)) {
-        setValues((List<String>) value);
+      if (value instanceof List) {
+        setValues((List<Object>) value);
+      } else if (value instanceof Boolean || value instanceof String) {
+        setValues(value);
       } else {
         throw new IllegalArgumentException("value must be a string or a list of strings");
       }

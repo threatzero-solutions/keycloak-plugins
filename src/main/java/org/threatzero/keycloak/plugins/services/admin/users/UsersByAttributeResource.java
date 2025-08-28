@@ -242,12 +242,12 @@ public class UsersByAttributeResource {
       CriteriaBuilder cb, Root<UserEntity> root, QueryFilter.Condition condition) {
     Boolean ignoreCase = condition.isIgnoreCase().orElse(true);
 
-    List<String> values = condition.getValues();
+    List<Object> values = condition.getValues();
     if (ignoreCase) {
-      values = values.stream().map(String::toLowerCase).toList();
+      values = values.stream().map(v -> v instanceof String ? ((String) v).toLowerCase() : v).toList();
     }
 
-    String value = values.get(0);
+    Object value = values.get(0);
     QueryFilter.Condition.Operator operator =
         condition.getOp().orElse(QueryFilter.Condition.Operator.EQ);
 
@@ -262,7 +262,7 @@ public class UsersByAttributeResource {
       alias = root.get(attributeName);
     }
 
-    if (ignoreCase) {
+    if (ignoreCase && value instanceof String) {
       alias = cb.lower(alias);
     }
 
@@ -273,7 +273,7 @@ public class UsersByAttributeResource {
         thePredicate = alias.in(values);
         break;
       case CONTAINS:
-        thePredicate = cb.like(alias, "%" + value + "%");
+        thePredicate = cb.like(alias, "%" + value.toString() + "%");
         break;
       case STARTS:
         thePredicate = cb.like(alias, value + "%");
@@ -282,16 +282,16 @@ public class UsersByAttributeResource {
         thePredicate = cb.like(alias, "%" + value);
         break;
       case GT:
-        thePredicate = cb.greaterThan(alias, value);
+        thePredicate = cb.greaterThan(alias, value.toString());
         break;
       case GTE:
-        thePredicate = cb.greaterThanOrEqualTo(alias, value);
+        thePredicate = cb.greaterThanOrEqualTo(alias, value.toString());
         break;
       case LT:
-        thePredicate = cb.lessThan(alias, value);
+        thePredicate = cb.lessThan(alias, value.toString());
         break;
       case LTE:
-        thePredicate = cb.lessThanOrEqualTo(alias, value);
+        thePredicate = cb.lessThanOrEqualTo(alias, value.toString());
         break;
       case EQ:
       default:

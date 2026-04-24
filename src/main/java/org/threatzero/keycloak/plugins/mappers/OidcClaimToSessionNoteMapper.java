@@ -54,6 +54,7 @@ public class OidcClaimToSessionNoteMapper extends AbstractClaimMapper {
 
   static final String CLAIM_NAME = "claim";
   static final String NOTE_KEY = "user.session.note";
+  static final String JSON_ENCODE = "json.encode";
 
   private static final List<ProviderConfigProperty> configProperties = new ArrayList<>();
 
@@ -79,6 +80,22 @@ public class OidcClaimToSessionNoteMapper extends AbstractClaimMapper {
             + " Session Note mapper) can project the note onto issued tokens.");
     noteKey.setRequired(true);
     configProperties.add(noteKey);
+
+    ProviderConfigProperty jsonEncode = new ProviderConfigProperty();
+    jsonEncode.setName(JSON_ENCODE);
+    jsonEncode.setLabel("JSON-Encode Value");
+    jsonEncode.setType(ProviderConfigProperty.BOOLEAN_TYPE);
+    jsonEncode.setHelpText(
+        "When true, the claim value is JSON-serialized before being written"
+            + " to the session note, preserving lists and nested structures"
+            + " through the string-only session-note store. Pair with a"
+            + " decoding protocol mapper (e.g. oidc-prefixed-session-note-mapper"
+            + " with json.decode enabled) to emit the claim as structured JSON"
+            + " on the issued token. When false (default), values are stored"
+            + " via String.valueOf — acceptable for scalar claims only.");
+    jsonEncode.setDefaultValue("false");
+    jsonEncode.setRequired(false);
+    configProperties.add(jsonEncode);
   }
 
   @Override
@@ -166,6 +183,7 @@ public class OidcClaimToSessionNoteMapper extends AbstractClaimMapper {
     if (claimValue == null) {
       return;
     }
-    context.setSessionNote(noteKey, String.valueOf(claimValue));
+    boolean jsonEncode = Boolean.parseBoolean(mapperModel.getConfig().get(JSON_ENCODE));
+    context.setSessionNote(noteKey, SessionNoteJsonCodec.encode(claimValue, jsonEncode));
   }
 }

@@ -14,11 +14,16 @@ open source under MIT.
   SAML equivalent of the above.
 - **Claim to User Session Note** (`oidc-claim-to-session-note-idp-mapper`) —
   plain copy of an OIDC claim value onto a user session note during
-  brokered login, with no match conditions. Pairs with a downstream
-  protocol mapper that projects session notes onto issued tokens.
+  brokered login, with no match conditions. Opt-in `json.encode` flag
+  serializes lists and nested structures as JSON before writing, so
+  structured claims can round-trip through the string-only session-note
+  store. Pairs with a downstream protocol mapper that projects session
+  notes onto issued tokens.
 - **Attribute to User Session Note** (`saml-attribute-to-session-note-idp-mapper`) —
-  SAML equivalent of the above. Fills the gap left by Keycloak's
-  OIDC-only session-note IDP mapper.
+  SAML equivalent of the above, same `json.encode` flag. Fills the gap
+  left by Keycloak's OIDC-only session-note IDP mapper. With the flag
+  enabled, multi-valued SAML attributes preserve all values as a JSON
+  array; otherwise the first value wins (legacy single-value behavior).
 
 ### Protocol mappers
 
@@ -26,7 +31,10 @@ open source under MIT.
   forwards every user session note whose key starts with a configured
   prefix as a token claim. Designed for dynamic claim namespaces
   (e.g. `tz.idp.*`) where pre-authoring a mapper per claim is
-  impractical.
+  impractical. Opt-in `json.decode` flag parses session-note values as
+  JSON so lists come out as real arrays on the token; falls back to a
+  raw-string claim when a value isn't valid JSON, so mixing encoded and
+  unencoded notes under one prefix is safe.
 
 ### Authenticators
 

@@ -53,6 +53,7 @@ public class SamlAttributeToSessionNoteMapper extends AbstractIdentityProviderMa
 
   static final String ATTRIBUTE_NAME = "attribute.name";
   static final String NOTE_KEY = "user.session.note";
+  static final String JSON_ENCODE = "json.encode";
 
   private static final List<ProviderConfigProperty> configProperties = new ArrayList<>();
 
@@ -77,6 +78,21 @@ public class SamlAttributeToSessionNoteMapper extends AbstractIdentityProviderMa
             + " issued tokens.");
     noteKey.setRequired(true);
     configProperties.add(noteKey);
+
+    ProviderConfigProperty jsonEncode = new ProviderConfigProperty();
+    jsonEncode.setName(JSON_ENCODE);
+    jsonEncode.setLabel("JSON-Encode Value");
+    jsonEncode.setType(ProviderConfigProperty.BOOLEAN_TYPE);
+    jsonEncode.setHelpText(
+        "When true, the attribute's values are JSON-serialized before being"
+            + " written to the session note, preserving multi-valued SAML"
+            + " attributes as an array. Pair with a decoding protocol mapper"
+            + " to emit the claim as a structured JSON array on the issued"
+            + " token. When false (default), only the first value is stored"
+            + " via String.valueOf — legacy single-value behavior.");
+    jsonEncode.setDefaultValue("false");
+    jsonEncode.setRequired(false);
+    configProperties.add(jsonEncode);
   }
 
   @Override
@@ -183,6 +199,13 @@ public class SamlAttributeToSessionNoteMapper extends AbstractIdentityProviderMa
     if (values.isEmpty()) {
       return;
     }
-    context.setSessionNote(noteKey, String.valueOf(values.get(0)));
+
+    boolean jsonEncode = Boolean.parseBoolean(mapperModel.getConfig().get(JSON_ENCODE));
+    // With JSON encoding off we preserve the legacy single-value behavior —
+    // session notes can only hold a string and the downstream code path
+    // predated structured support. With it on, we serialize the full list
+    // so the protocol mapper can emit it as a real JSON array.
+    Object valueToEncode = jsonEncode ? values : values.get(0);
+    context.setSessionNote(noteKey, SessionNoteJsonCodec.encode(valueToEncode, jsonEncode));
   }
 }

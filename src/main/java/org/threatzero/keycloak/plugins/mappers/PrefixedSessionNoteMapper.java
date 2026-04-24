@@ -53,6 +53,7 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
 
   static final String NOTE_PREFIX = "note.prefix";
   static final String STRIP_PREFIX = "strip.prefix";
+  static final String JSON_DECODE = "json.decode";
 
   private static final List<ProviderConfigProperty> configProperties = new ArrayList<>();
 
@@ -79,6 +80,23 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
     strip.setDefaultValue("false");
     strip.setRequired(false);
     configProperties.add(strip);
+
+    ProviderConfigProperty jsonDecode = new ProviderConfigProperty();
+    jsonDecode.setName(JSON_DECODE);
+    jsonDecode.setLabel("JSON-Decode Value");
+    jsonDecode.setType(ProviderConfigProperty.BOOLEAN_TYPE);
+    jsonDecode.setHelpText(
+        "When true, each matching session-note value is parsed as JSON before"
+            + " being written to the token — lists come out as arrays, objects"
+            + " as nested objects, typed scalars keep their type. Pair with"
+            + " claim-to-session-note IDP mappers that have json.encode enabled"
+            + " so structured claims round-trip losslessly. When a value isn't"
+            + " valid JSON the decoder falls back to emitting the raw string,"
+            + " so mixing encoded and unencoded notes under one prefix is safe."
+            + " When false (default), all values are emitted as strings.");
+    jsonDecode.setDefaultValue("false");
+    jsonDecode.setRequired(false);
+    configProperties.add(jsonDecode);
 
     OIDCAttributeMapperHelper.addIncludeInTokensConfig(
         configProperties, PrefixedSessionNoteMapper.class);
@@ -155,10 +173,12 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
       IDToken token, ProtocolMapperModel mapperModel, UserSessionModel userSession) {
     String prefix = mapperModel.getConfig().get(NOTE_PREFIX);
     boolean strip = Boolean.parseBoolean(mapperModel.getConfig().get(STRIP_PREFIX));
+    boolean jsonDecode = Boolean.parseBoolean(mapperModel.getConfig().get(JSON_DECODE));
     Map<String, String> selected =
         PrefixedSessionNoteMapperHelper.select(userSession.getNotes(), prefix, strip);
     for (Map.Entry<String, String> e : selected.entrySet()) {
-      token.getOtherClaims().put(e.getKey(), e.getValue());
+      Object value = SessionNoteJsonCodec.decode(e.getValue(), jsonDecode);
+      token.getOtherClaims().put(e.getKey(), value);
     }
   }
 }

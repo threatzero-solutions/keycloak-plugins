@@ -5,6 +5,7 @@
 !/pom.xml
 !/README.md
 !/LICENSE.md
+!/CLAUDE.md
 !/lombok.config
 !/.github/workflows/*
 !/src/**

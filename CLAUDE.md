@@ -32,12 +32,24 @@ mvn package                  # JAR without running install
 The shaded artifact lands at `target/keycloak-plugins-<version>.jar` and is
 what downstream Keycloak images consume.
 
-**Release flow** — `/.github/workflows/release-package.yml` runs on push to
-`main`: it builds, reads the version from `pom.xml`, and creates a GitHub
-release tagged with that version carrying the JAR as an artifact. To ship a
-new release, bump `<version>` in `pom.xml`, commit, and merge to main. The
-workflow will refuse to re-release an existing tag, so every merge to main
-must be paired with a version bump when there are publishable changes.
+**Release flow** — `/.github/workflows/ci.yml` runs on every push and PR. The
+`build` job compiles and runs tests on all triggers; the `release` job is
+gated on `push` to `refs/heads/main` and creates a GitHub release tagged
+with the current `pom.xml` version, attaching the shaded JAR. The release
+action skips if the tag already exists, so every merge to main carrying
+shippable changes must be paired with a version bump.
+
+**Release branch workflow** — when preparing a new release, open a branch
+named `release/<version>` off `main` and bump `pom.xml` there. Feature PRs
+that are meant to ship in that version target the release branch, not
+`main`. When the release is ready to cut, merge the release branch into
+`main`; the single merge fires one GitHub release containing every feature
+collected on the branch.
+
+The CI workflow only gates release on pushes to `main`, so pushes to a
+`release/*` branch get build + test feedback without publishing anything.
+This keeps one release = one merge = one tag, and lets several features
+ride a single version number without racing each other through CI.
 
 ## Repo layout
 

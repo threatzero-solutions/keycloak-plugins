@@ -46,6 +46,10 @@ open source under MIT.
 - **`GET /admin/realms/{realm}/users-by-attribute`** — paginated, filtered
   user lookup with group-membership and attribute predicates richer than
   the stock admin API exposes.
+- **`GET /admin/realms/{realm}/credential-action-link`** — generate a
+  one-time action-token URL (e.g. `UPDATE_PASSWORD`) for a user without
+  sending Keycloak's built-in email. Returns the link, expiry, and token
+  JTI so the caller can render its own branded email and audit the send.
 
 ## Compatibility
 

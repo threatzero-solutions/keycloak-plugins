@@ -1,1 +1,2 @@
 org.threatzero.keycloak.plugins.services.admin.users.UsersByAttributeResourceProvider
+org.threatzero.keycloak.plugins.services.admin.credentials.CredentialActionLinkResourceProvider

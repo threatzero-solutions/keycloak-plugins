@@ -34,6 +34,12 @@ open source under MIT.
   permit the target attribute under Keycloak's declarative user profile
   (declare it, or set `unmanagedAttributePolicy=ADMIN_EDIT`), or the
   write is silently dropped.
+- **Attribute to Attribute** (`saml-attribute-to-attribute-idp-mapper`) —
+  SAML equivalent of the above: plain copy of a SAML assertion attribute
+  onto a persisted user attribute, same `json.encode` flag (multi-valued
+  attributes preserved as a JSON array; otherwise first value wins) and
+  same FORCE clear-on-absent semantics. Same realm user-profile
+  prerequisite.
 
 ### Protocol mappers
 

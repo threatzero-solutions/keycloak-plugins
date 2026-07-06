@@ -206,6 +206,6 @@ public class SamlAttributeToSessionNoteMapper extends AbstractIdentityProviderMa
     // predated structured support. With it on, we serialize the full list
     // so the protocol mapper can emit it as a real JSON array.
     Object valueToEncode = jsonEncode ? values : values.get(0);
-    context.setSessionNote(noteKey, SessionNoteJsonCodec.encode(valueToEncode, jsonEncode));
+    context.setSessionNote(noteKey, ClaimJsonCodec.encode(valueToEncode, jsonEncode));
   }
 }

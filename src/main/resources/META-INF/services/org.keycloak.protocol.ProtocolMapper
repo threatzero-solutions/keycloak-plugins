@@ -1,1 +1,2 @@
 org.threatzero.keycloak.plugins.mappers.PrefixedSessionNoteMapper
+org.threatzero.keycloak.plugins.mappers.PrefixedAttributeMapper

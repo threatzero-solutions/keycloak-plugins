@@ -184,6 +184,6 @@ public class OidcClaimToSessionNoteMapper extends AbstractClaimMapper {
       return;
     }
     boolean jsonEncode = Boolean.parseBoolean(mapperModel.getConfig().get(JSON_ENCODE));
-    context.setSessionNote(noteKey, SessionNoteJsonCodec.encode(claimValue, jsonEncode));
+    context.setSessionNote(noteKey, ClaimJsonCodec.encode(claimValue, jsonEncode));
   }
 }

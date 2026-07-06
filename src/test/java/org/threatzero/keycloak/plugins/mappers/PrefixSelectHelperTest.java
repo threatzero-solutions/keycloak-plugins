@@ -5,10 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-public class PrefixedSessionNoteMapperHelperTest {
+public class PrefixSelectHelperTest {
 
   private static Map<String, String> notes(String... kv) {
     Map<String, String> m = new LinkedHashMap<>();
@@ -21,7 +22,7 @@ public class PrefixedSessionNoteMapperHelperTest {
   @Test
   public void selectsOnlyMatchingPrefix() {
     Map<String, String> result =
-        PrefixedSessionNoteMapperHelper.select(
+        PrefixSelectHelper.select(
             notes(
                 "tz.idp.department", "security",
                 "tz.idp.region", "emea",
@@ -38,7 +39,7 @@ public class PrefixedSessionNoteMapperHelperTest {
   @Test
   public void stripsPrefixWhenRequested() {
     Map<String, String> result =
-        PrefixedSessionNoteMapperHelper.select(
+        PrefixSelectHelper.select(
             notes("tz.idp.department", "security", "tz.idp.region", "emea"), "tz.idp.", true);
 
     assertEquals(2, result.size());
@@ -50,7 +51,7 @@ public class PrefixedSessionNoteMapperHelperTest {
   public void skipsExactPrefixMatchWhenStripping() {
     // Key equals the prefix exactly → stripped claim name is empty → skip.
     Map<String, String> result =
-        PrefixedSessionNoteMapperHelper.select(notes("tz.idp.", "value"), "tz.idp.", true);
+        PrefixSelectHelper.select(notes("tz.idp.", "value"), "tz.idp.", true);
 
     assertTrue(result.isEmpty());
   }
@@ -59,7 +60,7 @@ public class PrefixedSessionNoteMapperHelperTest {
   public void keepsExactPrefixMatchWhenNotStripping() {
     // Edge case: the prefix itself is a valid claim name when we don't strip.
     Map<String, String> result =
-        PrefixedSessionNoteMapperHelper.select(notes("tz.idp.", "value"), "tz.idp.", false);
+        PrefixSelectHelper.select(notes("tz.idp.", "value"), "tz.idp.", false);
 
     assertEquals(1, result.size());
     assertEquals("value", result.get("tz.idp."));
@@ -70,14 +71,14 @@ public class PrefixedSessionNoteMapperHelperTest {
     // We refuse to treat an unconfigured mapper as a "forward everything" match —
     // an empty prefix on a misconfigured instance shouldn't leak every session note.
     Map<String, String> result =
-        PrefixedSessionNoteMapperHelper.select(notes("anything", "value"), "", false);
+        PrefixSelectHelper.select(notes("anything", "value"), "", false);
 
     assertTrue(result.isEmpty());
   }
 
   @Test
   public void nullNotesReturnsEmpty() {
-    Map<String, String> result = PrefixedSessionNoteMapperHelper.select(null, "tz.idp.", false);
+    Map<String, String> result = PrefixSelectHelper.select(null, "tz.idp.", false);
     assertTrue(result.isEmpty());
   }
 
@@ -87,7 +88,7 @@ public class PrefixedSessionNoteMapperHelperTest {
     source.put("tz.idp.ok", "value");
     source.put("tz.idp.missing", null);
 
-    Map<String, String> result = PrefixedSessionNoteMapperHelper.select(source, "tz.idp.", false);
+    Map<String, String> result = PrefixSelectHelper.select(source, "tz.idp.", false);
 
     assertEquals(1, result.size());
     assertEquals("value", result.get("tz.idp.ok"));
@@ -96,9 +97,49 @@ public class PrefixedSessionNoteMapperHelperTest {
   @Test
   public void preservesInsertionOrderForDeterministicEmission() {
     Map<String, String> result =
-        PrefixedSessionNoteMapperHelper.select(
+        PrefixSelectHelper.select(
             notes("tz.idp.a", "1", "tz.idp.b", "2", "tz.idp.c", "3"), "tz.idp.", false);
 
     assertEquals("[tz.idp.a, tz.idp.b, tz.idp.c]", result.keySet().toString());
+  }
+
+  // select is generic over the value type — user attributes are
+  // Map<String, List<String>>. Values must pass through untouched.
+
+  @Test
+  public void selectsListValuedAttributesByPrefix() {
+    Map<String, List<String>> attrs = new LinkedHashMap<>();
+    attrs.put("tz.idp.groups", List.of("a", "b"));
+    attrs.put("tz.idp.department", List.of("security"));
+    attrs.put("username", List.of("alice"));
+
+    Map<String, List<String>> result = PrefixSelectHelper.select(attrs, "tz.idp.", false);
+
+    assertEquals(2, result.size());
+    assertEquals(List.of("a", "b"), result.get("tz.idp.groups"));
+    assertEquals(List.of("security"), result.get("tz.idp.department"));
+  }
+
+  @Test
+  public void stripsPrefixFromListValuedAttributes() {
+    Map<String, List<String>> attrs = new LinkedHashMap<>();
+    attrs.put("tz.idp.groups", List.of("a", "b"));
+
+    Map<String, List<String>> result = PrefixSelectHelper.select(attrs, "tz.idp.", true);
+
+    assertEquals(List.of("a", "b"), result.get("groups"));
+  }
+
+  @Test
+  public void retainsEmptyListValues() {
+    // Emptiness of a container value is the caller's concern (emitValue skips
+    // it) — select only filters on keys and null values.
+    Map<String, List<String>> attrs = new LinkedHashMap<>();
+    attrs.put("tz.idp.groups", List.of());
+
+    Map<String, List<String>> result = PrefixSelectHelper.select(attrs, "tz.idp.", false);
+
+    assertEquals(1, result.size());
+    assertTrue(result.get("tz.idp.groups").isEmpty());
   }
 }

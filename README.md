@@ -24,6 +24,22 @@ open source under MIT.
   left by Keycloak's OIDC-only session-note IDP mapper. With the flag
   enabled, multi-valued SAML attributes preserve all values as a JSON
   array; otherwise the first value wins (legacy single-value behavior).
+- **Claim to Attribute** (`oidc-claim-to-attribute-idp-mapper`) —
+  plain copy of an OIDC claim value onto a persisted user attribute
+  during brokered login, with no match conditions. Same `json.encode`
+  flag as the session-note variant for structured round-trips. With
+  sync mode FORCE the attribute is *removed* when the claim is absent,
+  so it tracks the identity provider's current truth on every login.
+  Pairs with `oidc-prefixed-attribute-mapper`. Note: the realm must
+  permit the target attribute under Keycloak's declarative user profile
+  (declare it, or set `unmanagedAttributePolicy=ADMIN_EDIT`), or the
+  write is silently dropped.
+- **Attribute to Attribute** (`saml-attribute-to-attribute-idp-mapper`) —
+  SAML equivalent of the above: plain copy of a SAML assertion attribute
+  onto a persisted user attribute, same `json.encode` flag (multi-valued
+  attributes preserved as a JSON array; otherwise first value wins) and
+  same FORCE clear-on-absent semantics. Same realm user-profile
+  prerequisite.
 
 ### Protocol mappers
 
@@ -35,6 +51,14 @@ open source under MIT.
   JSON so lists come out as real arrays on the token; falls back to a
   raw-string claim when a value isn't valid JSON, so mixing encoded and
   unencoded notes under one prefix is safe.
+- **Prefixed attributes** (`oidc-prefixed-attribute-mapper`) —
+  forwards every persisted user attribute whose key starts with a
+  configured prefix as a token claim. Same prefix/strip/`json.decode`
+  semantics as the session-note variant, but reads attributes off the
+  user at token-mint time — so the claims also appear on tokens minted
+  outside the broker flow (impersonation, direct grant, RFC 7523 JWT
+  authorization grant). Single-valued attributes emit scalar claims;
+  multi-valued attributes emit arrays.
 
 ### Authenticators
 
@@ -54,7 +78,7 @@ open source under MIT.
 ## Compatibility
 
 Known to be compatible with Keycloak 26. Tested most recently against
-26.3.3; check `keycloak.version` in `pom.xml` for the exact target.
+26.6.4; check `keycloak.version` in `pom.xml` for the exact target.
 
 ## Build
 

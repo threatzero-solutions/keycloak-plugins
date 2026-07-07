@@ -17,25 +17,29 @@ import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.IDToken;
 
 /**
- * Forwards every user session note whose key starts with a configured prefix
- * onto the access, ID, and/or UserInfo token as a claim of the same name.
+ * Forwards every persisted user attribute whose key starts with a configured
+ * prefix onto the access, ID, and/or UserInfo token as a claim of the same
+ * name. The attribute-based sibling of {@link PrefixedSessionNoteMapper}.
  *
- * <p>Keycloak's built-in {@code oidc-usersessionnote-mapper} requires one
- * instance per (session-note, token-claim) pair. When the set of notes is
- * admin-configured at runtime — e.g., an identity-broker pipeline that
- * imports an arbitrary number of upstream claims under a common namespace —
- * pre-authoring a mapper per note is either impractical or dual-write. This
- * mapper takes a prefix instead, so a single instance forwards the whole
- * namespace.
+ * <p>Because it reads attributes off the {@code UserModel} at token-mint
+ * time — not session notes — the claims survive every path that mints a
+ * token for the user: brokered browser SSO, impersonation, direct-grant /
+ * password fallback, and the RFC 7523 JWT Authorization Grant. It is
+ * population-agnostic: attributes may be written by
+ * {@code oidc-claim-to-attribute-idp-mapper} at broker time or by an
+ * external provisioning system through the admin API.
  *
  * <h3>Configuration</h3>
  *
  * <ul>
- *   <li>{@code note.prefix} (required): session notes whose key starts with
- *       this prefix are forwarded. Example: {@code tz.idp.}
+ *   <li>{@code attribute.prefix} (required): user attributes whose key
+ *       starts with this prefix are forwarded. Example: {@code tz.idp.}
  *   <li>{@code strip.prefix} (default {@code false}): when true, the prefix
  *       is removed from the emitted claim name. {@code tz.idp.department}
  *       becomes claim {@code department} on the token.
+ *   <li>{@code json.decode} (default {@code false}): parse each attribute
+ *       value as JSON before emitting; invalid JSON falls back to the raw
+ *       string.
  *   <li>Standard OIDC flags ({@code access.token.claim},
  *       {@code id.token.claim}, {@code userinfo.token.claim}): control which
  *       tokens the claims are added to.
@@ -43,15 +47,24 @@ import org.keycloak.representations.IDToken;
  *
  * <h3>Value handling</h3>
  *
- * <p>Session notes are string-valued. Each matching note is emitted verbatim
- * as a string claim. Notes with a null value are skipped.
+ * <p>Attribute values are string lists. A single-valued attribute is emitted
+ * as a scalar claim; a multi-valued attribute is emitted as an array. With
+ * {@code json.decode} enabled each value is parsed independently, so a
+ * JSON-encoded single value comes out as its structured form. Attributes
+ * with no values are skipped.
+ *
+ * <p>Note: {@code UserModel.getAttributes()} merges the built-in root
+ * attributes ({@code username}, {@code email}, {@code firstName},
+ * {@code lastName}) into the map — a namespaced prefix like {@code tz.idp.}
+ * naturally excludes them, but an overly broad prefix would capture them
+ * onto the token.
  */
-public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
+public class PrefixedAttributeMapper extends AbstractOIDCProtocolMapper
     implements OIDCAccessTokenMapper, OIDCIDTokenMapper, UserInfoTokenMapper {
 
-  public static final String PROVIDER_ID = "oidc-prefixed-session-note-mapper";
+  public static final String PROVIDER_ID = "oidc-prefixed-attribute-mapper";
 
-  static final String NOTE_PREFIX = "note.prefix";
+  static final String ATTRIBUTE_PREFIX = "attribute.prefix";
   static final String STRIP_PREFIX = "strip.prefix";
   static final String JSON_DECODE = "json.decode";
 
@@ -59,14 +72,14 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
 
   static {
     ProviderConfigProperty prefix = new ProviderConfigProperty();
-    prefix.setName(NOTE_PREFIX);
-    prefix.setLabel("Session Note Prefix");
+    prefix.setName(ATTRIBUTE_PREFIX);
+    prefix.setLabel("Attribute Prefix");
     prefix.setType(ProviderConfigProperty.STRING_TYPE);
     prefix.setHelpText(
-        "Every session note whose key starts with this prefix is forwarded as a"
-            + " token claim. Example: 'tz.idp.' forwards note 'tz.idp.department'"
-            + " as claim 'tz.idp.department' (or 'department' if Strip Prefix is"
-            + " enabled).");
+        "Every user attribute whose key starts with this prefix is forwarded"
+            + " as a token claim. Example: 'tz.idp.' forwards attribute"
+            + " 'tz.idp.department' as claim 'tz.idp.department' (or"
+            + " 'department' if Strip Prefix is enabled).");
     prefix.setRequired(true);
     configProperties.add(prefix);
 
@@ -76,7 +89,7 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
     strip.setType(ProviderConfigProperty.BOOLEAN_TYPE);
     strip.setHelpText(
         "When true, the prefix is removed from the emitted claim name. Leave"
-            + " disabled to preserve the full session-note key on the token.");
+            + " disabled to preserve the full attribute key on the token.");
     strip.setDefaultValue("false");
     strip.setRequired(false);
     configProperties.add(strip);
@@ -86,20 +99,20 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
     jsonDecode.setLabel("JSON-Decode Value");
     jsonDecode.setType(ProviderConfigProperty.BOOLEAN_TYPE);
     jsonDecode.setHelpText(
-        "When true, each matching session-note value is parsed as JSON before"
+        "When true, each matching attribute value is parsed as JSON before"
             + " being written to the token — lists come out as arrays, objects"
             + " as nested objects, typed scalars keep their type. Pair with"
-            + " claim-to-session-note IDP mappers that have json.encode enabled"
+            + " claim-to-attribute IDP mappers that have json.encode enabled"
             + " so structured claims round-trip losslessly. When a value isn't"
             + " valid JSON the decoder falls back to emitting the raw string,"
-            + " so mixing encoded and unencoded notes under one prefix is safe."
-            + " When false (default), all values are emitted as strings.");
+            + " so mixing encoded and unencoded attributes under one prefix is"
+            + " safe. When false (default), values are emitted as strings.");
     jsonDecode.setDefaultValue("false");
     jsonDecode.setRequired(false);
     configProperties.add(jsonDecode);
 
     OIDCAttributeMapperHelper.addIncludeInTokensConfig(
-        configProperties, PrefixedSessionNoteMapper.class);
+        configProperties, PrefixedAttributeMapper.class);
   }
 
   @Override
@@ -114,15 +127,16 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
 
   @Override
   public String getDisplayType() {
-    return "Prefixed session notes";
+    return "Prefixed attributes";
   }
 
   @Override
   public String getHelpText() {
-    return "Forwards every user session note whose key starts with a configured"
-        + " prefix as a token claim. Useful for passing through a dynamic"
-        + " namespace of claims (e.g. 'tz.idp.*') without pre-authoring a mapper"
-        + " per claim.";
+    return "Forwards every user attribute whose key starts with a configured"
+        + " prefix as a token claim. Reads persisted attributes rather than"
+        + " session notes, so claims survive token paths that skip the broker"
+        + " flow (impersonation, JWT authorization grant). Single-valued"
+        + " attributes emit scalars; multi-valued attributes emit arrays.";
   }
 
   @Override
@@ -171,14 +185,16 @@ public class PrefixedSessionNoteMapper extends AbstractOIDCProtocolMapper
 
   private static void emit(
       IDToken token, ProtocolMapperModel mapperModel, UserSessionModel userSession) {
-    String prefix = mapperModel.getConfig().get(NOTE_PREFIX);
+    String prefix = mapperModel.getConfig().get(ATTRIBUTE_PREFIX);
     boolean strip = Boolean.parseBoolean(mapperModel.getConfig().get(STRIP_PREFIX));
     boolean jsonDecode = Boolean.parseBoolean(mapperModel.getConfig().get(JSON_DECODE));
-    Map<String, String> selected =
-        PrefixSelectHelper.select(userSession.getNotes(), prefix, strip);
-    for (Map.Entry<String, String> e : selected.entrySet()) {
-      Object value = ClaimJsonCodec.decode(e.getValue(), jsonDecode);
-      token.getOtherClaims().put(e.getKey(), value);
+    Map<String, List<String>> selected =
+        PrefixSelectHelper.select(userSession.getUser().getAttributes(), prefix, strip);
+    for (Map.Entry<String, List<String>> e : selected.entrySet()) {
+      Object value = AttributeMapperHelper.emitValue(e.getValue(), jsonDecode);
+      if (value != null) {
+        token.getOtherClaims().put(e.getKey(), value);
+      }
     }
   }
 }

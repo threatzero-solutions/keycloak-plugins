@@ -64,6 +64,14 @@ open source under MIT.
 
 - **Set CUID attribute** — assigns a [CUID](https://github.com/paralleldrive/cuid2)
   to a user attribute during authentication.
+- **Verify email from trusted broker** (`idp-trust-email-verifier`) — a
+  first-broker-login step that marks a user's email verified when the identity
+  provider trusts email and asserts an email matching the account. Keycloak's
+  built-in `trustEmail` only verifies emails on *newly-created* broker users;
+  this also covers pre-existing accounts (e.g. roster-provisioned users) that
+  are later linked to the provider and would otherwise stay unverified. It
+  never un-verifies an email and only acts when the asserted email matches the
+  account's own email.
 
 ### Admin REST extensions
 

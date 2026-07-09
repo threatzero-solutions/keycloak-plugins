@@ -40,6 +40,17 @@ open source under MIT.
   attributes preserved as a JSON array; otherwise first value wins) and
   same FORCE clear-on-absent semantics. Same realm user-profile
   prerequisite.
+- **Email Domain Guard** (`email-domain-guard-idp-mapper`) — on a *returning*
+  brokered login (an existing federated link), suppresses an email the
+  provider asserts for a domain it is not authoritative for (default: the
+  `home.idp.discovery.domains` config attribute, `##`-delimited). Nulling the
+  asserted email makes Keycloak's `updateEmail` a no-op, so the account keeps
+  its existing verified address — a FORCE-sync provider can't move an
+  already-linked account onto a domain it doesn't own. Complements the
+  `idp-asserted-domain-matches` first-broker-login condition, which guards the
+  create/link path; this guards the update path, which no flow runs on. Enforces
+  only on the update path and only when domains are configured (a provider with
+  no domains passes through). Runs on all providers.
 
 ### Protocol mappers
 

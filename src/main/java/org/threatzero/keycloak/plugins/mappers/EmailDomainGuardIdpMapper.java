@@ -173,6 +173,20 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
       return;
     }
 
+    Map<String, String> idpConfig = idp.getConfig();
+    String attribute = configValue(mapperModel, DOMAINS_ATTRIBUTE_CONFIG, DOMAINS_ATTRIBUTE_DEFAULT);
+    String delimiter = configValue(mapperModel, DOMAINS_DELIMITER_CONFIG, DOMAINS_DELIMITER_DEFAULT);
+    Set<String> domains =
+        EmailDomainMatcher.parseDomains(
+            idpConfig == null ? null : idpConfig.get(attribute), delimiter);
+
+    // Cheap in-memory gate before the federated-identity DB lookup: only an
+    // out-of-domain email on a provider that has domains can ever be suppressed,
+    // and preprocess runs on every brokered login. Skip the lookup otherwise.
+    if (domains.isEmpty() || EmailDomainMatcher.matches(email, domains)) {
+      return;
+    }
+
     String alias = idp.getAlias();
     String brokerUserId = context.getBrokerUserId();
     if (alias == null || brokerUserId == null) {
@@ -188,13 +202,6 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
                 .getUserByFederatedIdentity(
                     realm, new FederatedIdentityModel(alias, brokerUserId, context.getUsername()))
             != null;
-
-    Map<String, String> idpConfig = idp.getConfig();
-    String attribute = configValue(mapperModel, DOMAINS_ATTRIBUTE_CONFIG, DOMAINS_ATTRIBUTE_DEFAULT);
-    String delimiter = configValue(mapperModel, DOMAINS_DELIMITER_CONFIG, DOMAINS_DELIMITER_DEFAULT);
-    Set<String> domains =
-        EmailDomainMatcher.parseDomains(
-            idpConfig == null ? null : idpConfig.get(attribute), delimiter);
 
     if (shouldSuppressEmail(email, domains, hasExistingLink)) {
       // Null asserted email → Keycloak's updateEmail is a no-op → the account

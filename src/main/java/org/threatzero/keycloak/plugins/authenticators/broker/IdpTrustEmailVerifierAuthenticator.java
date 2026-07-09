@@ -6,6 +6,7 @@ import org.keycloak.authentication.Authenticator;
 import org.keycloak.authentication.authenticators.broker.AbstractIdpAuthenticator;
 import org.keycloak.authentication.authenticators.broker.util.SerializedBrokeredIdentityContext;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
+import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -24,6 +25,12 @@ import org.keycloak.models.UserModel;
  * <p>Trust boundary: it verifies only when the IdP asserts an email that matches the account's own email
  * (case-insensitive). If the account was matched on something other than email, or the IdP asserted no email,
  * nothing is changed. It never un-verifies an email.
+ *
+ * <p>The {@code always.trust} config option skips the {@code trustEmail} check (the email-match
+ * requirement still applies). Use it only where a preceding flow condition has already established
+ * the provider's authority over the asserted email — e.g. behind {@code
+ * idp-asserted-domain-matches} in a domain-gated first-broker-login flow, where {@code trustEmail}
+ * is deliberately left off so Keycloak's own verification path stays live for the ungated branch.
  */
 public class IdpTrustEmailVerifierAuthenticator implements Authenticator {
   private static final Logger LOG = Logger.getLogger(IdpTrustEmailVerifierAuthenticator.class);
@@ -52,8 +59,18 @@ public class IdpTrustEmailVerifierAuthenticator implements Authenticator {
         serializedCtx.deserialize(context.getSession(), context.getAuthenticationSession());
     IdentityProviderModel idpConfig = brokerContext.getIdpConfig();
 
+    AuthenticatorConfigModel authConfig = context.getAuthenticatorConfig();
+    boolean alwaysTrust =
+        authConfig != null
+            && authConfig.getConfig() != null
+            && Boolean.parseBoolean(
+                authConfig
+                    .getConfig()
+                    .get(IdpTrustEmailVerifierAuthenticatorFactory.ALWAYS_TRUST_CONFIG));
+
     if (idpConfig != null
-        && shouldVerifyEmail(idpConfig.isTrustEmail(), brokerContext.getEmail(), user.getEmail())) {
+        && shouldVerifyEmail(
+            idpConfig.isTrustEmail(), alwaysTrust, brokerContext.getEmail(), user.getEmail())) {
       user.setEmailVerified(true);
       LOG.infof(
           "Marked email verified for user %s via trusted IdP %s",
@@ -67,13 +84,16 @@ public class IdpTrustEmailVerifierAuthenticator implements Authenticator {
    * Whether a trusted-broker login should mark the account's email verified.
    *
    * @param trustEmail the IdP's {@code trustEmail} flag (nullable, as Keycloak returns it)
+   * @param alwaysTrust the execution's {@code always.trust} config — treat the broker as trusted
+   *     regardless of {@code trustEmail} (a preceding flow condition vouches for it)
    * @param brokeredEmail the email asserted by the IdP for this login
    * @param userEmail the email on the matched/created account
-   * @return true only when the IdP trusts email and asserts a non-blank email that matches the
-   *     account's own email (case-insensitive)
+   * @return true only when the broker is trusted (either flag) and asserts a non-blank email that
+   *     matches the account's own email (case-insensitive)
    */
-  static boolean shouldVerifyEmail(Boolean trustEmail, String brokeredEmail, String userEmail) {
-    return Boolean.TRUE.equals(trustEmail)
+  static boolean shouldVerifyEmail(
+      Boolean trustEmail, boolean alwaysTrust, String brokeredEmail, String userEmail) {
+    return (alwaysTrust || Boolean.TRUE.equals(trustEmail))
         && brokeredEmail != null
         && !brokeredEmail.isBlank()
         && brokeredEmail.equalsIgnoreCase(userEmail);

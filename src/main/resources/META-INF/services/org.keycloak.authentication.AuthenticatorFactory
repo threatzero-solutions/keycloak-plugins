@@ -1,3 +1,4 @@
 org.threatzero.keycloak.plugins.authenticators.user.SetCuidAttributeAuthenticatorFactory
 
 org.threatzero.keycloak.plugins.authenticators.broker.IdpTrustEmailVerifierAuthenticatorFactory
+org.threatzero.keycloak.plugins.authenticators.broker.IdpAssertedDomainMatchesAuthenticatorFactory

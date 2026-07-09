@@ -14,7 +14,7 @@ them understand what's here without reading every class.
 
 - Java 21 (source + target)
 - Maven (no wrapper — use a system `mvn`)
-- Keycloak 26.3.3 SPIs (`provided` scope)
+- Keycloak 26.x SPIs (`provided` scope — see `keycloak.version` in `pom.xml`)
 - Lombok
 - JUnit 5 (Jupiter)
 - Shaded into a single fat JAR via `maven-shade-plugin`, with

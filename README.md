@@ -71,7 +71,21 @@ open source under MIT.
   this also covers pre-existing accounts (e.g. roster-provisioned users) that
   are later linked to the provider and would otherwise stay unverified. It
   never un-verifies an email and only acts when the asserted email matches the
-  account's own email.
+  account's own email. The `always.trust` option skips the `trustEmail` check
+  (the email-match requirement still applies) for flows where a preceding
+  condition — e.g. `idp-asserted-domain-matches` — already establishes the
+  provider's authority.
+- **Condition - IdP asserted domain matches** (`idp-asserted-domain-matches`) —
+  conditional for first-broker-login flows: true iff the email asserted by
+  the external identity provider belongs to one of that provider's own
+  configured domains (default: the `home.idp.discovery.domains` config
+  attribute, `##`-delimited). Gate silent create/link executions
+  (`idp-create-user-if-unique` / `idp-auto-link`) behind it and route
+  out-of-domain assertions to Keycloak's confirm-link + email-verification
+  path, so a provider can only silently bind accounts in domains it is
+  authoritative for. Fails closed — missing broker context, absent email,
+  or an empty domain list evaluate false; a `negate` option supports the
+  else-branch subflow.
 
 ### Admin REST extensions
 

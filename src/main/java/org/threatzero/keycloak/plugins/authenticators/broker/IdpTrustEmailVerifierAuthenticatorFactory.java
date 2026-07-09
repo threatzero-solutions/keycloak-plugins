@@ -1,6 +1,6 @@
 package org.threatzero.keycloak.plugins.authenticators.broker;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import org.keycloak.Config;
 import org.keycloak.authentication.Authenticator;
@@ -12,6 +12,8 @@ import org.keycloak.provider.ProviderConfigProperty;
 
 public class IdpTrustEmailVerifierAuthenticatorFactory implements AuthenticatorFactory {
   public static final String PROVIDER_ID = "idp-trust-email-verifier";
+
+  public static final String ALWAYS_TRUST_CONFIG = "always.trust";
 
   private static final IdpTrustEmailVerifierAuthenticator SINGLETON =
       new IdpTrustEmailVerifierAuthenticator();
@@ -62,7 +64,7 @@ public class IdpTrustEmailVerifierAuthenticatorFactory implements AuthenticatorF
 
   @Override
   public boolean isConfigurable() {
-    return false;
+    return true;
   }
 
   @Override
@@ -70,8 +72,26 @@ public class IdpTrustEmailVerifierAuthenticatorFactory implements AuthenticatorF
     return false;
   }
 
+  private static final List<ProviderConfigProperty> configProperties =
+      new ArrayList<ProviderConfigProperty>();
+
+  static {
+    ProviderConfigProperty property;
+    property = new ProviderConfigProperty();
+    property.setName(ALWAYS_TRUST_CONFIG);
+    property.setLabel("Always Trust Email");
+    property.setType(ProviderConfigProperty.BOOLEAN_TYPE);
+    property.setHelpText(
+        "Mark matching asserted emails verified even when the identity provider does not trust"
+            + " email. Use only where a preceding flow condition already establishes the"
+            + " provider's authority over the asserted email (e.g. Condition - IdP asserted"
+            + " domain matches).");
+    property.setDefaultValue(false);
+    configProperties.add(property);
+  }
+
   @Override
   public List<ProviderConfigProperty> getConfigProperties() {
-    return Collections.emptyList();
+    return configProperties;
   }
 }

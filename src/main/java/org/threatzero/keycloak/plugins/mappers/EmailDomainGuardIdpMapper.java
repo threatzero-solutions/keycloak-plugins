@@ -153,7 +153,10 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
 
   @Override
   public String getDisplayCategory() {
-    return "Attribute Importer";
+    // Keycloak's built-in category for preprocessFederatedIdentity mappers that
+    // adjust the brokered context before the user is written (e.g. its own
+    // Username Template mapper) — not an attribute importer.
+    return "Preprocessor";
   }
 
   @Override

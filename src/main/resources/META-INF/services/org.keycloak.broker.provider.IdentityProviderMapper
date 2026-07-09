@@ -4,3 +4,4 @@ org.threatzero.keycloak.plugins.mappers.SamlAdvancedAttributeMapper
 org.threatzero.keycloak.plugins.mappers.SamlAttributeToSessionNoteMapper
 org.threatzero.keycloak.plugins.mappers.OidcClaimToAttributeMapper
 org.threatzero.keycloak.plugins.mappers.SamlAttributeToAttributeMapper
+org.threatzero.keycloak.plugins.mappers.EmailDomainGuardIdpMapper

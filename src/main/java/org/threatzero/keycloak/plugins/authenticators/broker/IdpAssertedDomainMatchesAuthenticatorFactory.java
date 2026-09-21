@@ -17,6 +17,8 @@ public class IdpAssertedDomainMatchesAuthenticatorFactory
   public static final String DOMAINS_ATTRIBUTE_DEFAULT = "home.idp.discovery.domains";
   public static final String DOMAINS_DELIMITER_CONFIG = "domains.delimiter";
   public static final String DOMAINS_DELIMITER_DEFAULT = "##";
+  public static final String SUBDOMAINS_ATTRIBUTE_CONFIG = "subdomains.attribute";
+  public static final String SUBDOMAINS_ATTRIBUTE_DEFAULT = "home.idp.discovery.matchSubdomains";
   public static final String NEGATE_CONFIG = "negate";
 
   @Override
@@ -54,8 +56,9 @@ public class IdpAssertedDomainMatchesAuthenticatorFactory
   @Override
   public String getHelpText() {
     return "Condition matches if the email asserted by the external identity provider belongs to"
-        + " one of the domains configured on that identity provider. Use in a first-broker-login"
-        + " flow to gate silent account creation/linking to the provider's own domains.";
+        + " one of the domains configured on that identity provider (or a subdomain of one,"
+        + " when the provider's match-subdomains flag is on). Use in a first-broker-login flow"
+        + " to gate silent account creation/linking to the provider's own domains.";
   }
 
   @Override
@@ -89,6 +92,18 @@ public class IdpAssertedDomainMatchesAuthenticatorFactory
     property.setType(ProviderConfigProperty.STRING_TYPE);
     property.setHelpText("The literal separator between entries in the domain list.");
     property.setDefaultValue(DOMAINS_DELIMITER_DEFAULT);
+    configProperties.add(property);
+
+    property = new ProviderConfigProperty();
+    property.setName(SUBDOMAINS_ATTRIBUTE_CONFIG);
+    property.setLabel("Match-Subdomains Attribute");
+    property.setType(ProviderConfigProperty.STRING_TYPE);
+    property.setHelpText(
+        "The identity provider config attribute holding the boolean that widens the domain list"
+            + " to subdomains (the home-IdP-discovery plugin's flag). Point it at the plugin's"
+            + " attribute-specific variant (e.g. home.idp.discovery.matchSubdomains.email) if"
+            + " that is what routing reads. Unset or false keeps exact matching.");
+    property.setDefaultValue(SUBDOMAINS_ATTRIBUTE_DEFAULT);
     configProperties.add(property);
 
     property = new ProviderConfigProperty();

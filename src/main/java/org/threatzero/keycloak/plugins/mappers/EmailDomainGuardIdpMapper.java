@@ -69,6 +69,12 @@ import org.threatzero.keycloak.plugins.authenticators.broker.EmailDomainMatcher;
  *       domains the provider is authoritative for.
  *   <li>{@code domains.delimiter} (default {@code ##}): the literal separator
  *       between entries in that list.
+ *   <li>{@code subdomains.attribute} (default {@code
+ *       home.idp.discovery.matchSubdomains}): the identity-provider config
+ *       attribute holding the boolean that widens the domain list to subdomains
+ *       — the home-IdP-discovery plugin's own flag, read here so a provider
+ *       that routes {@code sub.example.com} logins is also trusted to assert
+ *       them. Unset or false keeps exact matching.
  * </ul>
  */
 public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
@@ -86,6 +92,8 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
   static final String DOMAINS_ATTRIBUTE_DEFAULT = "home.idp.discovery.domains";
   static final String DOMAINS_DELIMITER_CONFIG = "domains.delimiter";
   static final String DOMAINS_DELIMITER_DEFAULT = "##";
+  static final String SUBDOMAINS_ATTRIBUTE_CONFIG = "subdomains.attribute";
+  static final String SUBDOMAINS_ATTRIBUTE_DEFAULT = "home.idp.discovery.matchSubdomains";
 
   private static final List<ProviderConfigProperty> configProperties = new ArrayList<>();
 
@@ -107,6 +115,17 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
     delimiter.setHelpText("The literal separator between entries in the domain list.");
     delimiter.setDefaultValue(DOMAINS_DELIMITER_DEFAULT);
     configProperties.add(delimiter);
+
+    ProviderConfigProperty subdomains = new ProviderConfigProperty();
+    subdomains.setName(SUBDOMAINS_ATTRIBUTE_CONFIG);
+    subdomains.setLabel("Match-Subdomains Attribute");
+    subdomains.setType(ProviderConfigProperty.STRING_TYPE);
+    subdomains.setHelpText(
+        "The identity provider config attribute holding the boolean that widens the domain list"
+            + " to subdomains (the home-IdP-discovery plugin's flag). Unset or false keeps exact"
+            + " matching.");
+    subdomains.setDefaultValue(SUBDOMAINS_ATTRIBUTE_DEFAULT);
+    configProperties.add(subdomains);
   }
 
   @Override
@@ -179,14 +198,19 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
     Map<String, String> idpConfig = idp.getConfig();
     String attribute = configValue(mapperModel, DOMAINS_ATTRIBUTE_CONFIG, DOMAINS_ATTRIBUTE_DEFAULT);
     String delimiter = configValue(mapperModel, DOMAINS_DELIMITER_CONFIG, DOMAINS_DELIMITER_DEFAULT);
+    String subdomainsAttribute =
+        configValue(mapperModel, SUBDOMAINS_ATTRIBUTE_CONFIG, SUBDOMAINS_ATTRIBUTE_DEFAULT);
     Set<String> domains =
         EmailDomainMatcher.parseDomains(
             idpConfig == null ? null : idpConfig.get(attribute), delimiter);
+    boolean matchSubdomains =
+        EmailDomainMatcher.parseMatchSubdomains(
+            idpConfig == null ? null : idpConfig.get(subdomainsAttribute));
 
     // Cheap in-memory gate before the federated-identity DB lookup: only an
     // out-of-domain email on a provider that has domains can ever be suppressed,
     // and preprocess runs on every brokered login. Skip the lookup otherwise.
-    if (domains.isEmpty() || EmailDomainMatcher.matches(email, domains)) {
+    if (domains.isEmpty() || EmailDomainMatcher.matches(email, domains, matchSubdomains)) {
       return;
     }
 
@@ -206,7 +230,7 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
                     realm, new FederatedIdentityModel(alias, brokerUserId, context.getUsername()))
             != null;
 
-    if (shouldSuppressEmail(email, domains, hasExistingLink)) {
+    if (shouldSuppressEmail(email, domains, matchSubdomains, hasExistingLink)) {
       // Null asserted email → Keycloak's updateEmail is a no-op → the account
       // keeps its current verified email. This refuses the out-of-domain
       // rewrite without failing the login or clearing the stored address.
@@ -224,14 +248,16 @@ public class EmailDomainGuardIdpMapper extends AbstractIdentityProviderMapper {
    *
    * @param email the email the provider asserts this login (already known non-blank by the caller)
    * @param domains the provider's normalized authoritative-domain set
+   * @param matchSubdomains whether a subdomain of an authoritative domain also counts as in-domain
    * @param hasExistingLink whether a federated link already exists (i.e. this is the update path)
    * @return true iff this is the update path, domains are configured, and the email is out-of-domain
    */
-  static boolean shouldSuppressEmail(String email, Set<String> domains, boolean hasExistingLink) {
+  static boolean shouldSuppressEmail(
+      String email, Set<String> domains, boolean matchSubdomains, boolean hasExistingLink) {
     if (!hasExistingLink || domains == null || domains.isEmpty()) {
       return false;
     }
-    return !EmailDomainMatcher.matches(email, domains);
+    return !EmailDomainMatcher.matches(email, domains, matchSubdomains);
   }
 
   private static String configValue(

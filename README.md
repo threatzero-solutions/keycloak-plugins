@@ -50,7 +50,11 @@ open source under MIT.
   `idp-asserted-domain-matches` first-broker-login condition, which guards the
   create/link path; this guards the update path, which no flow runs on. Enforces
   only on the update path and only when domains are configured (a provider with
-  no domains passes through). Runs on all providers.
+  no domains passes through). Honors the provider's
+  `home.idp.discovery.matchSubdomains` flag (attribute name configurable via
+  `subdomains.attribute`) with the same dot-delimited suffix rule the routing
+  plugin uses, so a provider widened to `*.example.com` may assert those
+  addresses too. Runs on all providers.
 
 ### Protocol mappers
 
@@ -90,7 +94,11 @@ open source under MIT.
   conditional for first-broker-login flows: true iff the email asserted by
   the external identity provider belongs to one of that provider's own
   configured domains (default: the `home.idp.discovery.domains` config
-  attribute, `##`-delimited). Gate silent create/link executions
+  attribute, `##`-delimited), or a subdomain of one when the provider's
+  `home.idp.discovery.matchSubdomains` flag is on (attribute name configurable
+  via `subdomains.attribute`) — the same rule the home-IdP-discovery routing
+  plugin applies, so a login routed on a subdomain is not then judged
+  out-of-domain here. Gate silent create/link executions
   (`idp-create-user-if-unique` / `idp-auto-link`) behind it and route
   out-of-domain assertions to Keycloak's confirm-link + email-verification
   path, so a provider can only silently bind accounts in domains it is

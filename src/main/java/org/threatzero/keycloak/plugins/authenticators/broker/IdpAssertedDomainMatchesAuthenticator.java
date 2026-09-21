@@ -27,6 +27,14 @@ import org.keycloak.models.UserModel;
  * its own domains cannot silently bind to (or pre-create) another domain's
  * account.
  *
+ * <p>Subdomains: the routing plugin can be told to send {@code sub.example.com}
+ * logins to the provider that owns {@code example.com} (its per-provider
+ * {@code home.idp.discovery.matchSubdomains} flag). This condition reads the
+ * same flag (attribute name configurable via {@code subdomains.attribute}) and
+ * applies the same suffix rule, so a login routed on a subdomain is not then
+ * judged out-of-domain here. With the flag unset or false, matching stays
+ * exact.
+ *
  * <p>Evaluates against the brokered identity serialized into the
  * authentication session (the same note {@link AbstractIdpAuthenticator}
  * reads), so it only makes sense inside a first-broker-login flow. Fails
@@ -78,15 +86,23 @@ public class IdpAssertedDomainMatchesAuthenticator implements ConditionalAuthent
         config.getOrDefault(
             IdpAssertedDomainMatchesAuthenticatorFactory.DOMAINS_DELIMITER_CONFIG,
             IdpAssertedDomainMatchesAuthenticatorFactory.DOMAINS_DELIMITER_DEFAULT);
+    String subdomainsAttribute =
+        config.getOrDefault(
+            IdpAssertedDomainMatchesAuthenticatorFactory.SUBDOMAINS_ATTRIBUTE_CONFIG,
+            IdpAssertedDomainMatchesAuthenticatorFactory.SUBDOMAINS_ATTRIBUTE_DEFAULT);
 
     Map<String, String> idpConfig = idp.getConfig();
     String rawDomains = idpConfig == null ? null : idpConfig.get(domainsAttribute);
     Set<String> domains = EmailDomainMatcher.parseDomains(rawDomains, delimiter);
-    boolean matches = EmailDomainMatcher.matches(brokerCtx.getEmail(), domains);
+    boolean matchSubdomains =
+        EmailDomainMatcher.parseMatchSubdomains(
+            idpConfig == null ? null : idpConfig.get(subdomainsAttribute));
+    boolean matches = EmailDomainMatcher.matches(brokerCtx.getEmail(), domains, matchSubdomains);
 
     logger.debugf(
-        "Asserted email domain %s the domains configured on identity provider '%s'.",
-        matches ? "matches" : "does not match", idpAlias);
+        "Asserted email domain %s the domains configured on identity provider '%s' (subdomain"
+            + " matching %s).",
+        matches ? "matches" : "does not match", idpAlias, matchSubdomains ? "on" : "off");
     return matches;
   }
 
